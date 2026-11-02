@@ -1,103 +1,71 @@
-import { Hatchet } from '@hatchet-dev/typescript-sdk/core';
 import { useEffect, useState } from 'react';
-import type { ChatEvent, ChatInput } from './events';
+import type { ChatEvent } from './events';
 
-// The SDK's fetch-based client talks to the Hatchet engine straight from the
-// browser. (A real app would give the browser a scoped token, not a tenant API token.)
-const hatchet = new Hatchet({
-  token: import.meta.env.HATCHET_CLIENT_TOKEN,
-  // the local engine serves plain HTTP
-  tls: { strategy: 'none' },
-});
+// The page never talks to Hatchet: the backend (server/server.ts) holds the token
+// and relays the chat's topic. Vite proxies /api to it in development.
 
-// where the page got an event: this browser's cache, or a read from the Hatchet topic
-type Source = 'cache' | 'hatchet';
-type Message = { cursor: string; event: ChatEvent; source: Source };
+// source: where the page got the event, this browser's cache or the Hatchet topic
+type Message = { cursor: string; event: ChatEvent; source: 'cache' | 'hatchet' };
 type Conversation = { id: string; title: string };
 
-const cacheKey = (topic: string) => `topic:${topic}`;
-
-function readCache(topic: string): Message[] {
-  try {
-    const cached: Message[] = JSON.parse(localStorage.getItem(cacheKey(topic)) ?? '[]');
-    return cached.map((m) => ({ ...m, source: 'cache' }));
-  } catch {
-    return [];
-  }
-}
-
-function writeCache(topic: string, messages: Message[]) {
-  try {
-    localStorage.setItem(cacheKey(topic), JSON.stringify(messages));
-  } catch {
-    // a full or blocked localStorage only costs the next load a full replay
-  }
-}
+const load = <T,>(key: string, fallback: T): T => JSON.parse(localStorage.getItem(key) ?? 'null') ?? fallback;
+const save = (key: string, value: unknown) => localStorage.setItem(key, JSON.stringify(value));
+const cacheKey = (chatId: string) => `chat:${chatId}`;
 
 export function App() {
   const conversationId = useConversationId();
   const topic = `chat-${conversationId}`;
   const [messages, setMessages] = useState<Message[]>([]);
-  const [conversations, setConversations] = useState<Conversation[]>(() =>
-    JSON.parse(localStorage.getItem('conversations') ?? '[]')
-  );
+  const [conversations, setConversations] = useState(() => load<Conversation[]>('conversations', []));
+  const saveConversations = (next: Conversation[]) => {
+    setConversations(next);
+    save('conversations', next);
+  };
 
   // Show what this browser has cached, then follow the topic from the last
   // cached cursor, so only newer events are read from Hatchet.
   useEffect(() => {
-    let seen = readCache(topic);
+    let seen: Message[] = load<Message[]>(cacheKey(conversationId), []).map((m) => ({ ...m, source: 'cache' }));
+    const update = (next: Message[]) => {
+      seen = next;
+      setMessages(next);
+      save(cacheKey(conversationId), next);
+    };
     setMessages(seen);
-    const controller = new AbortController();
+    let source: EventSource;
 
-    (async () => {
-      const follow = async (cursor?: string) => {
-        for await (const { cursor: next, payload } of hatchet.streams.subscribe(topic, {
-          cursor,
-          signal: controller.signal,
-        })) {
-          const event: ChatEvent = JSON.parse(new TextDecoder().decode(payload));
-          seen = [...seen, { cursor: next, event, source: 'hatchet' }];
-          setMessages(seen);
-          writeCache(topic, seen);
-        }
-      };
+    const follow = (cursor?: string) => {
+      source = new EventSource(`/api/chats/${conversationId}/events?cursor=${encodeURIComponent(cursor ?? '')}`);
+      source.onmessage = (e) => update([...seen, { cursor: e.lastEventId, event: JSON.parse(e.data), source: 'hatchet' }]);
+      // the cached cursor no longer resumes, so replay the topic from the start
+      source.addEventListener('expired', () => {
+        source.close();
+        update([]);
+        follow();
+      });
+    };
+    follow(seen.at(-1)?.cursor);
 
-      try {
-        await follow(seen.at(-1)?.cursor);
-      } catch (err) {
-        if (controller.signal.aborted || !seen.length) throw err;
-        // the cached cursor no longer resumes (e.g. it expired), so replay the topic from the start
-        seen = [];
-        setMessages(seen);
-        writeCache(topic, seen);
-        await follow();
-      }
-    })().catch(console.error);
-
-    return () => controller.abort();
-  }, [topic]);
+    return () => source.close();
+  }, [conversationId]);
 
   async function send(text: string) {
-    const turnId = crypto.randomUUID();
-    const question: ChatEvent = { type: 'user', turnId, text };
-    const input: ChatInput = { topic, turnId, message: text };
-
-    // The question goes on the topic too, so the topic holds the whole conversation.
-    await hatchet.streams.publish(topic, JSON.stringify(question));
-    await hatchet.runNoWait('chat-reply', input);
-
-    if (!conversations.some((c) => c.id === conversationId)) {
-      const next = [{ id: conversationId, title: text }, ...conversations];
-      setConversations(next);
-      localStorage.setItem('conversations', JSON.stringify(next));
+    // the backend puts the question on the topic and starts the reply; both come back over the event stream
+    const res = await fetch(`/api/chats/${conversationId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) {
+      console.error('send failed:', res.status, await res.text());
+      return;
     }
+    if (placeholder) saveConversations([{ id: conversationId, title: text }, ...conversations]);
   }
 
   function remove(id: string) {
-    const next = conversations.filter((c) => c.id !== id);
-    setConversations(next);
-    localStorage.setItem('conversations', JSON.stringify(next));
-    localStorage.removeItem(cacheKey(`chat-${id}`));
+    saveConversations(conversations.filter((c) => c.id !== id));
+    localStorage.removeItem(cacheKey(id));
     if (id === conversationId) location.hash = crypto.randomUUID();
   }
 
@@ -169,9 +137,7 @@ export function App() {
           <div>
             {messages.map(({ cursor, event, source }) => (
             <div key={cursor} className="row">
-              <span className={`source ${source}`} title={source === 'cache' ? 'from this browser\'s cache' : 'read from the Hatchet topic'}>
-                {source}
-              </span>
+              <span className={`source ${source}`}>{source}</span>
               <span className="tag">{event.type}</span>
               <span className="text">{'text' in event ? JSON.stringify(event.text) : ''}</span>
               <span className="cursor" title={cursor}>
@@ -213,8 +179,8 @@ function useConversationId(): string {
   const [id, setId] = useState(read);
   useEffect(() => {
     const onChange = () => setId(read());
-    window.addEventListener('hashchange', onChange);
-    return () => window.removeEventListener('hashchange', onChange);
+    addEventListener('hashchange', onChange);
+    return () => removeEventListener('hashchange', onChange);
   }, []);
   return id;
 }
