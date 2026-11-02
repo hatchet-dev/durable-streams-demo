@@ -1,0 +1,28 @@
+{
+  "name": "durablestreamsdemo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Chatbot demo of Hatchet durable streams: a worker publishes a reply's statuses and text to a topic, and the browser follows it with the SDK's core client",
+  "type": "module",
+  "scripts": {
+    "hatchet": "./scripts/start-hatchet.sh",
+    "worker": "tsx --env-file=.env worker/worker.ts",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "@hatchet-dev/typescript-sdk": "link:../hatchet-workstation/repos/hatchet/sdks/typescript/dist",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0",
+    "vite": "^6.3.0"
+  }
+}
