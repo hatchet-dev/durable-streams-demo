@@ -2,3 +2,5 @@ node_modules
 .hatchet
 web/dist
 scripts
+.env
+.idea/
