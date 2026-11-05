@@ -6,7 +6,8 @@ Each conversation is one stream topic. The topic holds every event in the conver
 history as well as its live feed.
 
 ```mermaid
-flowchart LR
+%%{init: {"flowchart": {"nodeSpacing": 80, "rankSpacing": 90, "padding": 20}}}%%
+flowchart TB
     Browser["Browser<br/>src/App.tsx"]
     Backend["Backend<br/>server/server.ts"]
     Worker["Worker<br/>worker/worker.ts"]
