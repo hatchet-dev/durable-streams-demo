@@ -41,12 +41,20 @@ can reach it can read a chat whose id they know. A real app would tie chats to s
 
 ## Running
 
+You need Node 22 or later, pnpm, a Hatchet API token, and an Anthropic API key. Create `.env` in the project root:
+
+```bash
+HATCHET_CLIENT_TOKEN="<your Hatchet API token>"
+ANTHROPIC_API_KEY="<your Anthropic API key>"
+```
+
+Then run each of these in its own terminal:
+
 ```bash
 pnpm install
-pnpm hatchet   # terminal 1: the local engine (:7095) and API (:8098)
-pnpm worker    # terminal 2
-pnpm server    # terminal 3: the backend (:8787)
-pnpm dev       # terminal 4: http://localhost:5199, proxying /api to the backend
+pnpm worker    # terminal 1: runs chat-reply
+pnpm backend   # terminal 2: the backend on :8787
+pnpm dev       # terminal 3: http://localhost:5199, proxying /api to the backend
 ```
 
 The worker and the backend read `HATCHET_CLIENT_TOKEN` from `.env`, and the worker reads `ANTHROPIC_API_KEY` from it

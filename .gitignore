@@ -1,6 +1,5 @@
 node_modules
-.hatchet
-web/dist
-scripts
+dist
 .env
 .idea/
+.hatchet

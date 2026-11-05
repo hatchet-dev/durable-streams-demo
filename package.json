@@ -5,15 +5,14 @@
   "description": "Chatbot demo of Hatchet durable streams: a worker publishes Claude's reply to a topic, and a small backend relays the topic to the browser",
   "type": "module",
   "scripts": {
-    "hatchet": "./scripts/start-hatchet.sh",
     "worker": "tsx --env-file=.env worker/worker.ts",
-    "server": "tsx --env-file=.env server/server.ts",
+    "backend": "tsx --env-file=.env server/server.ts",
     "dev": "vite",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
-    "@hatchet-dev/typescript-sdk": "link:../hatchet-workstation/repos/hatchet/sdks/typescript/dist",
+    "@hatchet-dev/typescript-sdk": "^1.46.0",
     "@hono/node-server": "^2.1.6",
     "hono": "^4.13.16",
     "react": "^19.1.0",

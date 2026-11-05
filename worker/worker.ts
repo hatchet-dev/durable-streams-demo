@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { HatchetClient } from '@hatchet-dev/typescript-sdk/v1';
 import type { ChatEvent, ChatInput } from '../src/events';
 
-// reads HATCHET_CLIENT_TOKEN and HATCHET_CLIENT_TLS_STRATEGY from the environment
+// reads HATCHET_CLIENT_TOKEN from the environment
 const hatchet = HatchetClient.init();
 // reads ANTHROPIC_API_KEY from the environment
 const anthropic = new Anthropic();
